@@ -64,7 +64,7 @@ def QR_decomp(A):
 
 lim = 6
 points = 200
-NOE = 4
+NOE = 3
 occup = 2
 
 a = np.linspace(-lim,lim,points)
@@ -85,33 +85,35 @@ dt = 0.8 * dx**2 / 2
 #############################################
 phi_n = phi/norm(phi)
 phi_1n = phi_1/norm(phi_1)
-c0,c1 = 0.3,0.7
+c0,c1 = 0.7,0.3
 Q = np.column_stack((c0*phi_n,c1*phi_1n))
 Qtemp = np.zeros(Q.shape)
 Dens_tresh = 1e-12
 Convergence = 1
 n_x = iD
 
+
+
+
 num_states_to_fill = mt.ceil(NOE / occup)
-for i in range(num_states_to_fill):
-    current_occup = min(occup, NOE - (i * occup))
-    psi_squared = np.abs(Q[:,i])**2
-    n_x += (current_occup / dx) * psi_squared
+Ex_pot1D, Ex_energy = calculate_exchange(dx,n_x)
+Clmb_pot1D, Clmb_energy = Calculate_ColoumbE(dx,n_x,lim,points)
+Vex = np.diag(Ex_pot1D)
+Vcb = np.diag(Clmb_pot1D)
+V_ext = np.diag(v_ext) 
+Comp_Hamil = H_o+Vex+Vcb+V_ext
+H_eig, H_wavfn = np.linalg.eigh(Comp_Hamil)
+
+prev_n_x = n_x
+
+
+
 
 
 while(Convergence>Dens_tresh):
-    num_states_to_fill = mt.ceil(NOE / occup)
-    Ex_pot1D, Ex_energy = calculate_exchange(dx,n_x)
-    Clmb_pot1D, Clmb_energy = Calculate_ColoumbE(dx,n_x,lim,points)
-    Vex = np.diag(Ex_pot1D)
-    Vcb = np.diag(Clmb_pot1D)
-    V_ext = np.diag(v_ext) 
-    Comp_Hamil = H_o+Vex+Vcb+V_ext
-    H_eig, H_wavfn = np.linalg.eigh(Comp_Hamil)
-    new_density = np.zeros(points)
     Orbital_E = 0
     prev_n_x = n_x
-
+    new_density = np.zeros(points)
 
     O = expm(-dt  * Comp_Hamil)
 
@@ -123,8 +125,25 @@ while(Convergence>Dens_tresh):
         current_occup = min(occup, NOE - (i * occup))
         psi_squared = np.abs(Q[:,i])**2
         new_density += (current_occup / dx) * psi_squared 
-        Orbital_E += current_occup * H_eig[i]
     n_x = new_density
+
+    for i in range(num_states_to_fill):
+        current_occup = min(occup, NOE - (i * occup))
+        Hpsi = Comp_Hamil @ Q[:,i]
+        normalisation = np.dot(Q[:,i],Q[:,i])
+        Orbital_E += current_occup * np.dot(Q[:,i],Hpsi)/normalisation
+        
+
+
+
+    Ex_pot1D, Ex_energy = calculate_exchange(dx,n_x)
+    Clmb_pot1D, Clmb_energy = Calculate_ColoumbE(dx,n_x,lim,points)
+    Vex = np.diag(Ex_pot1D)
+    Vcb = np.diag(Clmb_pot1D)
+    V_ext = np.diag(v_ext) 
+    Comp_Hamil = H_o+Vex+Vcb+V_ext
+
+
     total_v_x = Ex_pot1D + Clmb_pot1D + v_ext
         
     pot_integral = np.sum(n_x * total_v_x) * dx
@@ -135,8 +154,7 @@ while(Convergence>Dens_tresh):
     print(f"Final Kinetic Energy: {Kinetic_Energy:.6f}")
     print(f"Final Total Energy: {Total_Energy:.6f}")
     Convergence = np.sqrt(np.sum((n_x - prev_n_x)**2) / n_x.shape[0])
-    
+    print(Convergence)
 
-SCF_loop(6,500,2,8)
     
 
